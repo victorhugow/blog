@@ -1,0 +1,19 @@
+project:
+  type: website
+
+website:
+  title: "V"
+  navbar:
+    right:
+      - about.qmd
+      - icon: github
+        href: https://github.com/victorhugow
+      - icon: linkedin
+        href: https://linkedin.com/in/victorhugow
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+
+editor: visual
+
