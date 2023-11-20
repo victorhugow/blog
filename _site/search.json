@@ -18,13 +18,13 @@
     "href": "about.html",
     "title": "About",
     "section": "",
-    "text": "Hello, i’m Victor Hugo\n25 years old, brazilian born and raised in the interior of São Paulo State. I like to create,solve problems and help my coworkers with their main daily chalenges. I am very curious and fastleaner. Today, I work in data, economics finance, and programming. I’m very interested in quantitative finance, data science and macroeconomics. Solving business problems with data is my passion."
+    "text": "Hello, i’m Victor Hugo\n26 years old, brazilian born and raised in the interior of São Paulo State. I like to create,solve problems and help my coworkers with their main daily chalenges. I am very curious and fastleaner. Today, I work in data, economics finance, and programming. I’m very interested in quantitative finance, data science and macroeconomics. Solving business problems with data is my passion."
   },
   {
     "objectID": "posts/post-with-code/index.html",
     "href": "posts/post-with-code/index.html",
     "title": "Post With Code",
     "section": "",
-    "text": "This is a post with executable code.\n\n1 + 1\n\n[1] 2"
+    "text": "This is a post with executable code.\n\n1 + 1 + 1\n\n[1] 3"
   }
 ]
