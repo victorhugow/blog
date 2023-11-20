@@ -1,37 +1,26 @@
 ---
 title: "Curva de juros: um conto de três fatores"
-author: "Victor H. V. Souza"
+author: "Victor Souza"
 date: today
-categories: [analysis]
-toc: true
-number-sections: true
-format: 
-  html:
-    theme: minty
-    mainfont: montserrat
-    self-contained: true
-    embed-resources: true
-    page-layout: full
-    code-fold: false
-    code-tools: true
+lang: pt   
+categories: [Finanças, Machine Learning, Juros]
 ---
 
-# Preparo e exploração dos dados
+A ideia do notebook é a partir do dos contratos futuros de DI construir a estrutura a termo de juros da economia brasileira. Por fim, vamos aplicar uma Análise de Componentes Principais e encontrar os fatores de risco latentes na curva de juros. Se você já ouviu falar em Nelson-Siegel, você já deve imaginar quais são.
+
+Na análise, serão usados os ajustes dos contratos negociados na B3 --- e tem bastante coisa, de boi-gordo a câmbio, de cupom cambial a café. Os dados podem ser obtidos facilmente por meio do pacote `rb3`. Vou utilizar também o pacote `fixedincome`. Ambos foram desenvolvidos pelo Wilson Freitas e facilitam bastante a vida.
+
+# Obtendo e transformando os dados da B3
 
 ```{r, warning=FALSE, message=FALSE}
-rm(list=ls())
 library(tidyverse)
 library(rb3) # Dados da B3 
 library(fixedincome) # Manipulação de dados de renda fixa e juros
 library(bizdays) # Calendários
 library(plotly)
-
 library(xts)
-
-# options(download.file.method="wininet")
-# devtools::install_github('thomasp85/gganimate')
-library(gganimate)
 library(reactable)
+library(psych)
 
 paleta_cores = c('#b8acd1', '#e2d5f1', '#c9e8fd', '#526d85', '#4e4466',
                  '#eccfb0', '#e06666', '#6fa8dc', '#0b5394', '#351c75',
@@ -40,26 +29,21 @@ paleta_cores = c('#b8acd1', '#e2d5f1', '#c9e8fd', '#526d85', '#4e4466',
 add_title <- function(x,title_str, subtitle_str = ''){
   x |>
   plotly::layout(title = list(text = paste0('<b>',title_str, '</b>','<br>','<sup>',subtitle_str,'</sup>')))
-  }
-```
+}
 
-A ideia do notebook é a partir do dos contratos futuros de DI construir a estrutura a termo de juros da economia brasileira. Por fim, vamos aplicar uma Análise de Componentes Principais e encontrar os fatores de risco latentes na curva de juros. Se você já ouviu falar em Nelson-Siegel, você já deve imaginar quais são.
 
-Na análise, serão usados os ajustes dos contratos negociados na B3 --- e tem bastante coisa, de boi-gordo a câmbio, de cupom cambial a café. Os dados podem ser obtidos facilmente por meio do pacote `rb3`. Vou utilizar também o pacote `fixedincome`. Ambos foram desenvolvidos pelo Wilson Freitas e facilitam bastante a vida.
-
-```{r, warning=FALSE, message=FALSE}
 # Baixandos os dados da B3 (leva um tempinho, lembre-se de manter o cache para não deixar o TI da bolsa maluco)
 # ajustesB3 <- futures_mget(first_date = '2006-01-01', last_date =  Sys.Date(), 
 #                   do_cache = T)
 # saveRDS(ajustesB3,'data/b3_ajustes.rds')
 
-ajustesB3 = readRDS('data/b3_ajustes.rds')
+# Carregando os dados
+ajustesB3 = readRDS('data/b3_ajustes.rds') 
 ```
 
 Obtidos os dados, vamos filtrar o data.frame para os contratos de DI1. Note que o fechamento vem em preço, será necessário transformar em taxa. Deixei a conta explicita.
 
 ```{r, warning=FALSE, message=FALSE}
-
 di1_data = ajustesB3 |>
   filter(commodity == 'DI1') |>
   mutate(date_vencimento = rb3::maturity2date(maturity_code),
@@ -72,9 +56,14 @@ di1_data = ajustesB3 |>
 glimpse(di1_data)
 ```
 
+## Interpolando as curvas e fixando as maturidades
+
 Note que esta é uma estrutura dinâmica. O tempo passa, os contratos vencem. Para continuar o exercício, nós precisamos fixar as maturidades para trabalhar com taxas de 1,2,3 anos.
 
 ```{r, warning=FALSE, message=FALSE}
+#| fig-height: 12
+#| fig-width: 20
+
 ultima_refdate_plot = di1_data |>
 filter(refdate == max(refdate) | refdate %in% c('2023-09-01', '2023-01-03', '2022-10-04', '2020-04-01')) |>
 mutate(refdate = as.factor(refdate)) |> 
@@ -86,8 +75,8 @@ ggplot() +
    scale_colour_manual('', values = paleta_cores) +
    labs(y = 'Taxa', x = 'Data de Vencimento do Contrato')
 
-ggplotly(ultima_refdate_plot) |>
-  add_title(title = 'Curva de Juros', subtitle_str = '% a.a.')
+ggplotly(ultima_refdate_plot) # |>
+  # add_title(title = 'Curva de Juros', subtitle_str = '% a.a.')
 ```
 
 Para isso, é necessário interpolar as curvas --- não se assuste, você está apenas ligando os vértices para cada data de referência. Assim, será possível pegar `du_ate_vcto` fixos de cada `refdate`. O pacote `fixedincome` facilita o processo. Vamos criar um objeto SpotRateCurve para cada data de referência, adicionar um método de interpolação e salvar apenas os vértices de interesse.
@@ -107,18 +96,8 @@ di1_data_l = di1_data |>
 
 curvaDI1 = tibble::tibble(refdate = names(di1_data_l), curvadi1 = di1_data_l) 
 
-# O legal do pacote é que ele tem umas funções de plot plugadas
-# p = curvaDI1 |> filter(refdate == max(refdate)) |>
-#     pull(curvadi1) %>%
-#     pluck(1) |>
-#     fixedincome::ggspotratecurveplot(use_interpolation = TRUE)
-# ggplotly(p)
-
 # Agora que temos um estrutura a termo interpolada para cada data de referência, conseguimos por exemplo, pegar a taxa de um ano para cada data de referência
-dus = c(
-        #21, 42, 63, 126, 
-        252, 252*2, 252*3, 252*4, 252*5, 252*6, 252*7, 252*8, 252*9, 252*10
-        )
+dus = c(252, 252*2, 252*3, 252*4, 252*5, 252*6, 252*7, 252*8, 252*9, 252*10)
 
 di1_constant_maturity = map_dfr(di1_data_l, 
           .f = function(x){
@@ -128,35 +107,34 @@ di1_constant_maturity = map_dfr(di1_data_l,
                    tx = tx)
           }
 )
-glimpse(di1_constant_maturity)
 ```
 
 Para ilustrar o problema que acabamos de resolver, compare o gráfico abaixo com o primeiro gráfico que nós fixemos. Agora o gráfico não desloca mais, temos as taxas de 252 dias (1 ano), 504 dias (2 anos) e assim sucessivamente para cada ponto no tempo.
 
-E essa foi a evolução da nossa curva de juros de 2020 para cá.
+Com os dados organizados dessa forma conseguimos dar uma brincada e construir algumas visualizações interessantes.
 
 ```{r, warning=FALSE, message=FALSE}
-p = di1_constant_maturity |> 
+#| column: page
+#| layout-ncol: 2
+
+# Gráfico com datas de referência selecionadas
+p1 = di1_constant_maturity |> 
 filter(refdate == max(refdate) | refdate %in% c('2023-09-01', '2023-01-03', '2022-01-03', '2021-01-04','2020-04-01', '2019-02-11')) |>
 mutate(refdate = as.factor(refdate)) |>
     ggplot() +
-    geom_point(aes(x = maturity, y = tx, colour = refdate)) +
-   geom_line(aes(x = maturity, y = tx, colour = refdate)) +
+    geom_point(aes(x = maturity, y = tx, colour = refdate), show.legend = F) +
+   geom_line(aes(x = maturity, y = tx, colour = refdate), show.legend = F) +
+   theme(legend.position = 'none') +
    theme_minimal() +
    scale_x_continuous(breaks = dus) +
    scale_y_continuous(labels = scales::percent) +
    scale_colour_manual('', values = paleta_cores) +
    labs(y = 'Taxa', x = 'DU')
 
-ggplotly(p) |>
-  add_title(title = 'Curva de Juros', subtitle_str = '% a.a.')
-```
+ggplotly(p1) 
 
-E se a gente animar esse gráfico?
-
-```{r, warning=FALSE, message=FALSE}
-#| layout-ncol: 2
-p = di1_constant_maturity |>
+# Grafico interativo
+p2 = di1_constant_maturity |>
     group_by(refdate_month = month(refdate), refdate_year = year(refdate)) |> # Pegando apenas o final de cada mês para não ficar muito pesado
     filter(refdate == max(refdate)) |>
     ungroup() |>
@@ -166,31 +144,19 @@ p = di1_constant_maturity |>
       geom_line(aes(x = maturity, y = tx, frame = refdate), size = 1, colour = paleta_cores[1], show.legend = F) +
       theme_minimal() +
       scale_x_continuous(breaks = dus) +
-      scale_y_continuous(labels = scales::percent, n.breaks = 15) +
+      scale_y_continuous(labels = scales::percent, n.breaks = 10) +
       # scale_colour_manual('', values = paleta_cores) +
       labs(y = 'Taxa', x = 'DU')
 
 # Você pode criar um plotly com um seletor de datas
-ggplotly(p) |>
+ggplotly(p2) |>
 animation_opts(1000, easing = 'elastic', redraw = FALSE) |>
-animation_button(x = 1, xanchor = 'right', y = 0, yanchor = 'bottom') |>
-add_title(title = 'Curva de Juros', subtitle_str = '% a.a.')
-
-# Ou se preferir, você pode criar um GIF
-p +
-  theme_minimal(base_size = 16) +
-  transition_time(refdate) +
-  shadow_mark(alpha = 0.1) +
-  labs(subtitle = 'Ref. Date: {frame_time}')
-```
-
-E mais gráficos.
-
-```{r, warning=FALSE, message=FALSE}
-#| layout-ncol: 2
+animation_button(x = 1, xanchor = 'right', y = 0, yanchor = 'bottom') 
+#|>
+# add_title(title = 'Curva de Juros', subtitle_str = '% a.a.')
 
 # Todos os vértices ao longo do tempo
-p = di1_constant_maturity |>
+p3 = di1_constant_maturity |>
     mutate(maturity = as.factor(maturity)) |>
     ggplot() +
     geom_line(aes(x = refdate, y = tx, colour = maturity)) +
@@ -199,8 +165,9 @@ p = di1_constant_maturity |>
    scale_colour_manual('', values = paleta_cores) +
    labs(y = 'Taxa', x = 'Data')
 
-ggplotly(p) |>
-  add_title(title = 'Curva de Juros', subtitle_str = '% a.a. por vértice')
+ggplotly(p3) 
+#|>
+# add_title(title = 'Curva de Juros', subtitle_str = '% a.a. por vértice')
 
 # Superfície com o Plotly
 di1_constant_maturity_xts = di1_constant_maturity |>
@@ -215,8 +182,9 @@ plot_ly(z = ~di1_constant_maturity_xts, y = index(di1_constant_maturity_xts), x 
            xaxis = list(title = "DU"),
            yaxis = list(title = "Data"),
            zaxis = list(title = "Taxa")
-         )) |>
-  add_title(title = 'Curva de Juros', subtitle_str = '% a.a., por maturidade e data de referência')
+         )) #|>
+  # add_title(title = 'Curva de Juros', subtitle_str = '% a.a., por maturidade e data de referência')
+
 ```
 
 # Análise de Componentes Principais (PCA)
@@ -234,32 +202,26 @@ colnames(di1_constant_maturity_wide) <-  c('refdate',paste0(as.numeric(
   colnames(di1_constant_maturity_wide[-1])
   )/252, 'Y'))
 
-# Conferindo se tem algum NA nos valores
-summary(di1_constant_maturity_wide,digits = 4)
-
-# Qual o desvio padrão de cada vértice da estrutura a termo?
-apply(di1_constant_maturity_wide[,-1], 2, sd)
+psych::describe(di1_constant_maturity_wide[,-1]) |>
+  knitr::kable(format = 'html',digits = 4)
 ```
 
-Assim como foi visto no gráfico, aqui podemos ver que a correlação entre os vértices é bem alta. Logo, é bastante provável que com poucos componentes principais consigamos expressar a maior parte da variabilidade das séries.
-
-Para quem já viu um pouco de finanças isso não é surpresa. Dentre as várias teorias que explicam a estrutura a termo, a Teoria das Expectativas diz que as taxas de juros de X anos nada mais é do que uma combinação da taxa de 1 ano e das taxas de 1 ano esperadas. Isso surge de uma relação de não-arbitragem em que um investidor deve ser indiferente entre investir em um título de 2 anos e investir em um título de 1 ano e depois reinvestir por mais 1 ano.
+O gráfico a seguir mostra a correlação entre os vértices. Como esperado a partir da inspeção visual das séries, como mostra o gráfico a seguir a correlação é alta e positiva. É bastante provável que com poucos componentes principais consigamos expressar a maior parte da variabilidade das séries.
 
 ```{r, warning=FALSE, message=FALSE}
 p = di1_constant_maturity_wide |>
-    filter(refdate >= '2015-01-01') |>
     select(-refdate) |>
     corrr::correlate(quiet = T) |>
     corrr::rearrange() |>
     corrr::autoplot()
-ggplotly(p) |>
-  add_title(title = 'Matriz de Correlação', subtitle_str = 'entre os vértices da curva de juros')
+ggplotly(p) 
 ```
+
+Para quem já viu um pouco de finanças isso não é surpresa. Dentre as várias teorias que explicam a estrutura a termo, a Teoria das Expectativas diz que as taxas de juros de X anos nada mais é do que uma combinação da taxa de 1 ano e das taxas de 1 ano esperadas. Isso decorre de uma relação de não-arbitragem em que um investidor é indiferente entre investir em um título de 2 anos e investir em um título de 1 ano e depois reinvestir por mais 1 ano.
 
 Para performar o PCA, temos a opção de tanto usar a matriz de covariância, como usar a matriz de correlação. Para essa aplicação especifica, vamos utilizar a matriz de correlação. Não queremos que o vértice de maior volatilidade domine sobre os demais. Esse problema fica bem mais evidente em outras aplicações em que as séries são bastante diferentes e com componentes idiossincráticos relevantes (e.g. taxas de câmbio).
 
 ```{r, warning=FALSE, message=FALSE}
-
 # Vamos utilizar o pacote factoextra para performar o PCA
 # Coloquei o processo numa função para extrairmos apenas o necessário
 get_pca_results <- function(wide_data_frame){
@@ -295,11 +257,29 @@ get_pca_results <- function(wide_data_frame){
 di1_pca = get_pca_results(di1_constant_maturity_wide)
 ```
 
-Vamos aos resultados. Primeiramente, sim, apenas 1 componente principal explica 97% da variabilidade em todos os 10 vértices que selecionamos da estrutura a termo. Os 3 primeiros componentes explicam praticamente 100%.
+## Analisando os componentes principais
+
+Vamos aos resultados.
+
+Primeiramente, sim, apenas 1 componente principal explica 97% da variabilidade em todos os 10 vértices que selecionamos da estrutura a termo. Os 3 primeiros componentes explicam praticamente 100%.
+
+```{r, warning=FALSE, message=FALSE}
+# Contribuição, Desvio Padrão por Componente principal
+reactable(di1_pca$contrib |> filter(PC %in% as.character(c(1:5))),
+          defaultColDef = colDef(format = colFormat(digits = 4)),compact = T, pagination = F, fullWidth = T) |>
+  reactablefmtr::add_title('Contribuição e Desvio Padrão por Componente Principal', font_size = 16)
+```
 
 **Mas o que tem em cada componente? Pois é, essa é a parte que mais me deixou curioso como um eterno aprendiz e iniciante em 999 coisas, embora para outras pessoas seja óbvio.**
 
-Vejamos as correlações dos componentes com as séries originais, bem como os *loadings* ou auto-vetores de cada componente*.* O *loading* nada mais é que a transformação linear que você aplica em cada série para obter o componente principal. Na prática, estamos construindo uma combinação linear de vértices. Cada combinação é linearmente independente da outra.
+Para isso, vejamos as correlações dos componentes com as séries originais, bem como os *loadings* ou auto-vetores de cada componente*.* O *loading* nada mais é que a transformação linear que você aplica em cada série para obter o componente principal. Na prática, estamos construindo uma combinação linear de vértices. Cada combinação é linearmente independente da outra.
+
+```{r, warning=FALSE, message=FALSE}
+# Correlação entre o Componente Principal e o Vértice da Estrutura a Termo
+reactable(di1_pca$correlation[,c(1:5)]*-1,
+          defaultColDef = colDef(format = colFormat(digits = 2), style = reactablefmtr::color_scales(di1_pca$correlation*-1)), compact = T, pagination = F, fullWidth = T) |>
+  reactablefmtr::add_title('Correlação entre os PCs e os Vértice do DI', font_size = 16)
+```
 
 O primeiro componente (PC1 ou Dim.1) tem alta correlação com todos os vértices e ela é bastante parecida em magnitude. De fato, como podemos ver no gráfico com os *loadings,* ele é uma combinação linear de pesos iguais de todos os vértices. Uma coisa que vou tentar mostrar posteriormente, é que, na prática, **é como se estivessemos fazendo uma média de todos os vértices e extraindo um nível médio da curva naquela data de referência.**
 
@@ -307,19 +287,7 @@ O segundo componente (PC2) tem correlação negativa com os vértices curtos e p
 
 Por fim, o PC3 ficou um pouco menos óbvio. O plot dos *loadings* tem quase um formato de U invertido, capturando um terceiro fator que é a curvatura da curva de juros.
 
-De fato, essas ideias estão bem documentadas na literatura de finanças. **Com esses 3 fatores, deveríamos ser capazes de reproduzir toda a estrutura a termo da taxa de juros.**
-
-```{r, warning=FALSE, message=FALSE}
-# Contribuição, Desvio Padrão por Componente principal
-reactable(di1_pca$contrib |> filter(PC %in% as.character(c(1:5))),
-          defaultColDef = colDef(format = colFormat(digits = 4)),compact = T, pagination = F, fullWidth = F) |>
-  reactablefmtr::add_title('Contribuição e Desvio Padrão por Componente Principal')
-
-# Correlação entre o Componente Principal e o Vértice da Estrutura a Termo
-reactable(di1_pca$correlation[,c(1:5)]*-1,
-          defaultColDef = colDef(format = colFormat(digits = 2), style = reactablefmtr::color_scales(di1_pca$correlation*-1)), compact = T, pagination = F, fullWidth = F) |>
-  reactablefmtr::add_title('Correlação entre os PCs e os Vértice do DI')
-
+```{r}
 # Loadings 
 f=paste0(1:10, 'Y')
 df_loadings = (di1_pca$prcomp.res$rotation*-1) |> as.data.frame()
@@ -338,16 +306,20 @@ p=df_loadings |>
   labs(x = 'Vértice', y = '')
 ggplotly(p) |>
   add_title(title = 'Loadings dos componentes principais', subtitle_str = '')
-
 ```
+
+De fato, essas ideias estão bem documentadas na literatura de finanças. **Com esses 3 fatores, devemos ser capazes de reproduzir toda a estrutura a termo da taxa de juros no tempo.**
+
+## Comparando os componentes principais com média, inclinação e curvatura
 
 Agora, nós vamos comparar: i) o primeiro componente principal (PC1) com uma métrica de nível da curva de juros; ii) o PC2 com uma medida de inclinação; e por fim, iii) o PC3 com uma métrica de curvatura.
 
-Vamos definir a **inclinação** como sendo a difernça entre os juros de 10Y e os juros de 1Y. A curvatura será dada por 2\*Média(4Y, 5Y, 6Y, 7Y)-(1Y+10Y). Já o nível é simplesmente a média de todos os vértices.
+Vamos definir a **inclinação** como sendo a difernça entre os juros de 10Y e os juros de 1Y. A **curvatura** será dada pelo dobro da média dos vértices de 4,5,6 e 7 anos subtraídos da soma dos dos juros de 1 e 10 anos. Já o **nível** é a média simples de todos os vértices.
 
 ```{r, warning=FALSE, message=FALSE}
-#| layout-ncol: 2
-
+#| layout-ncol: 3
+#| column: screen
+ 
 #  Para isso vamos calcular os fatores nível, inclinação e curvatura com os dados originais
 fatores_curva = di1_constant_maturity_wide |>
   mutate(nivel = rowMeans(di1_constant_maturity_wide[,-1]),
@@ -401,13 +373,10 @@ plot_ly(data = fatores_vs_pca) %>%
     yaxis = list(title = '')
   ) |> add_title(title_str = 'PC3 vs Curvatura da Curva de Juros',
                  subtitle = 'curvatura (eixo esq.), PC3 (eixo dir.)')
-
-
-
 ```
 
 Como pode ser visto, os resultados são bastante satisfatórios para os dois primeiros componentes. No caso da curvatura, o fit já não é tão bom, sobretudo no passado. É possível melhorar fazendo 2\*(3Y) - (1Y+10Y) --- replicando um pouco mais fielmente os loadings obtidos para o PC3, entretanto imagino que a ideia de "curvatura" perderia um pouco o sentido. Sendo assim, vamos manter o resultado que encontramos. Um possível motivo para o shape dos *loadings* do terceiro componente não ter sido o esperado diante da literatura seja as discrepâncias de liquidez entre os vértices.
 
-Enfim, essa é uma das intersecções mais interessantes que tive contato entre técnicas de *machine learning* e finanças.
+Enfim, essa é uma das intersecções mais interessantes que tive contato entre técnicas de *Machine Learning* e Finanças.
 
-*Enfim, obrigado se leu até aqui e se você encontrou algum erro ou alguma coisa muito estranha, pode me mandar mensagem* ;).
+**Enfim, obrigado se leu até aqui e se você encontrou algum erro ou alguma coisa muito estranha, pode me mandar mensagem ;).**
