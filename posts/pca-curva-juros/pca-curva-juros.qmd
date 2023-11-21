@@ -187,14 +187,13 @@ plot_ly(z = ~di1_constant_maturity_xts, y = index(di1_constant_maturity_xts), x 
 
 ```
 
-# Análise de Componentes Principais (PCA)
+# Aplicando a Análise de Componentes Principais (PCA)
 
 Agora que temos tudo pronto, vamos seguir com a Análise de Componentes Principais. A ideia do PCA é que ele é capaz de para uma matriz de n x k, encontrar k-1 vetores independentes que contenham a maior parte da variabilidade encontrada nos vetores originais.
 
 Complicando um pouco, o algoritmo busca pelos autovalores e autovetores da matriz de covariância ou correlação das séries, retornando k-1 vetores linearmente independentes.
 
 ```{r, warning=FALSE, message=FALSE}
-
 # Vamos passar o df para wide e renomear os vértices para ficar mais claro
 di1_constant_maturity_wide = di1_constant_maturity |>
   pivot_wider(id_cols = refdate, names_from = maturity, values_from = tx)
@@ -312,7 +311,7 @@ De fato, essas ideias estão bem documentadas na literatura de finanças. **Com 
 
 ## Comparando os componentes principais com média, inclinação e curvatura
 
-Agora, nós vamos comparar: i) o primeiro componente principal (PC1) com uma métrica de nível da curva de juros; ii) o PC2 com uma medida de inclinação; e por fim, iii) o PC3 com uma métrica de curvatura.
+Agora, nós vamos comparar o primeiro componente principal (PC1) com uma métrica de nível da curva de juros. O PC2 com uma medida de inclinação. E, por fim, o PC3 com uma métrica de curvatura.
 
 Vamos definir a **inclinação** como sendo a difernça entre os juros de 10Y e os juros de 1Y. A **curvatura** será dada pelo dobro da média dos vértices de 4,5,6 e 7 anos subtraídos da soma dos dos juros de 1 e 10 anos. Já o **nível** é a média simples de todos os vértices.
 
