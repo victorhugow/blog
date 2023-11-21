@@ -349,7 +349,9 @@ plot_ly(data = fatores_vs_pca) %>%
     yaxis2 = ay,
     xaxis = list(title="Date", ticks=fatores_vs_pca$Date),
     yaxis = list(title = '')
-  ) |> add_title(title_str = 'PC1 vs Nível da Curva de Juros')
+  ) |> add_title(title_str = 'PC1 vs Nível da Curva de Juros',
+                 subtitle = 'nível (eixo esq.), PC1 (eixo dir.)')
+              
 
 # PC2 vs. Inclinação (10Y - 1Y)
 plot_ly(data = fatores_vs_pca) %>%
