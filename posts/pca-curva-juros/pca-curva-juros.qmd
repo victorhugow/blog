@@ -33,7 +33,6 @@ add_title <- function(x,title_str, subtitle_str = ''){
   plotly::layout(title = list(text = paste0('<b>',title_str, '</b>','<br>','<sup>',subtitle_str,'</sup>')))
 }
 
-
 # Baixandos os dados da B3 (leva um tempinho, lembre-se de manter o cache para não deixar o TI da bolsa maluco)
 # ajustesB3 <- futures_mget(first_date = '2006-01-01', last_date =  Sys.Date(), 
 #                   do_cache = T)
@@ -77,8 +76,7 @@ ggplot() +
    scale_colour_manual('', values = paleta_cores) +
    labs(y = 'Taxa', x = 'Data de Vencimento do Contrato')
 
-ggplotly(ultima_refdate_plot) # |>
-  # add_title(title = 'Curva de Juros', subtitle_str = '% a.a.')
+ggplotly(ultima_refdate_plot)
 ```
 
 Para isso, é necessário interpolar as curvas --- não se assuste, você está apenas ligando os vértices para cada data de referência. Assim, será possível pegar `du_ate_vcto` fixos de cada `refdate`. O pacote `fixedincome` facilita o processo. Vamos criar um objeto SpotRateCurve para cada data de referência, adicionar um método de interpolação e salvar apenas os vértices de interesse.
@@ -382,3 +380,5 @@ Como pode ser visto, os resultados são bastante satisfatórios para os dois pri
 Enfim, essa é uma das intersecções mais interessantes que tive contato entre técnicas de *Machine Learning* e Finanças.
 
 **Enfim, obrigado se leu até aqui e se você encontrou algum erro ou alguma coisa muito estranha, pode me mandar mensagem ;).**
+
+---
