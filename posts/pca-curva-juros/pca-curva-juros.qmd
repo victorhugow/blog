@@ -10,7 +10,7 @@ image: pca-curva-juros.png
 
 A ideia do notebook é a partir do dos contratos futuros de DI construir a estrutura a termo de juros da economia brasileira. Por fim, vamos aplicar uma Análise de Componentes Principais e encontrar os fatores de risco latentes na curva de juros. Se você já ouviu falar em Nelson-Siegel, você já deve imaginar quais são.
 
-Na análise, serão usados os ajustes dos contratos negociados na B3 --- e tem bastante coisa, de boi-gordo a câmbio, de cupom cambial a café. Os dados podem ser obtidos facilmente por meio do pacote `rb3`. Vou utilizar também o pacote `fixedincome`. Ambos foram desenvolvidos pelo Wilson Freitas e facilitam bastante a vida.
+Na análise, serão usados os ajustes dos contratos negociados na B3 --- e tem bastante coisa, de boi-gordo a câmbio, de cupom cambial a café. Os dados podem ser obtidos facilmente por meio do biblioteca `rb3`. Para manipular os dados de juros e interpolar as taxas, vou utilizar o pacote `fixedincome`. Ambos foram desenvolvidos pelo Wilson Freitas.
 
 # Obtendo e transformando os dados da B3
 
