@@ -4,6 +4,8 @@ author: "Victor Souza"
 date: today
 lang: pt   
 categories: [Finanças, Machine Learning, Juros]
+toc: true
+image: pca-curva-juros.png
 ---
 
 A ideia do notebook é a partir do dos contratos futuros de DI construir a estrutura a termo de juros da economia brasileira. Por fim, vamos aplicar uma Análise de Componentes Principais e encontrar os fatores de risco latentes na curva de juros. Se você já ouviu falar em Nelson-Siegel, você já deve imaginar quais são.
