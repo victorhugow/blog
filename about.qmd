@@ -13,6 +13,9 @@ about:
     - icon: github
       text: Github
       href: https://github.com/victorhugow
+    - icon: file-person
+      text: Resume
+      href: https://drive.google.com/file/d/1NI5R0U1hFcuZTbqF9QidFsnRlR_zqKDI/view?usp=sharing
 ---
 
 Hello, i'm Victor Hugo
